@@ -58,11 +58,18 @@ struct Memory {
     size_t size = 0;
     unsigned index = 0, stride = 0, storage_height = 0, width = 0, height = 0;
     unsigned data_offset = 0, fourcc = VA_FOURCC_NV12;
+    // Bytes between the end of the last whole luma row slot and the chroma
+    // plane. Zero for storage this driver or V4L2 lays out; an imported
+    // DMA-BUF may place chroma anywhere after luma, for instance on a page
+    // boundary (Mesa's freedreno does for linear NV12).
+    unsigned chroma_skew = 0;
     bool queued = false;
     std::shared_ptr<void> vpp_registration;
     std::shared_ptr<void> vulkan_registration;
     ~Memory();
     uint8_t *map();
+    // Byte offset of the chroma plane from the start of the buffer.
+    size_t chroma() const { return size_t(data_offset) + size_t(stride) * storage_height + chroma_skew; }
 };
 class Decoder;
 class SurfaceCopier {

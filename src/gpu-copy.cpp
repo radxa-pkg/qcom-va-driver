@@ -28,13 +28,14 @@ class GpuCopy {
     struct View {
         GpuCopy &owner;
         std::weak_ptr<Memory> memory;
-        unsigned width, height, stride, storage_height, offset, fourcc;
+        unsigned width, height, stride, storage_height, offset, skew, fourcc;
         EGLImageKHR images[2] = {EGL_NO_IMAGE_KHR, EGL_NO_IMAGE_KHR};
         GLuint textures[2] = {};
         unsigned columns[2] = {}, rows[2] = {};
         View(GpuCopy &gpu, const std::shared_ptr<Memory> &m, unsigned w, unsigned h)
             : owner(gpu), memory(m), width(w), height(h), stride(m->stride),
-              storage_height(m->storage_height), offset(m->data_offset), fourcc(m->fourcc) {}
+              storage_height(m->storage_height), offset(m->data_offset), skew(m->chroma_skew),
+              fourcc(m->fourcc) {}
         ~View() {
             glDeleteTextures(2, textures);
             for (auto image : images)
@@ -44,7 +45,7 @@ class GpuCopy {
         bool matches(const std::shared_ptr<Memory> &m, unsigned w, unsigned h) const {
             return memory.lock() == m && width == w && height == h && stride == m->stride &&
                    storage_height == m->storage_height && offset == m->data_offset &&
-                   fourcc == m->fourcc;
+                   skew == m->chroma_skew && fourcc == m->fourcc;
         }
     };
     // Weak ownership is essential: retaining CAPTURE Memory would prevent requeue().
@@ -80,7 +81,7 @@ class GpuCopy {
             // RGBA8 views transport four raw bytes per texel; no YUV conversion.
             uint64_t row_bytes = uint64_t(p ? ((w + 1) & ~1u) : w) * bytes;
             unsigned columns = (row_bytes + 3) / 4, rows = p ? (h + 1) / 2 : h;
-            uint64_t offset = m->data_offset + (p ? uint64_t(m->stride) * m->storage_height : 0);
+            uint64_t offset = p ? uint64_t(m->chroma()) : m->data_offset;
             check(uint64_t(columns) * 4 <= m->stride && offset <= INT_MAX &&
                       offset + uint64_t(rows - 1) * m->stride + uint64_t(columns) * 4 <= m->size,
                   "GPU copy packed plane exceeds buffer");
