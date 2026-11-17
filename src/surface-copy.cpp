@@ -56,7 +56,7 @@ struct CpuAccess {
     }
 };
 void validate(const Memory &m, unsigned width, unsigned height, unsigned bytes) {
-    const uint64_t chroma_offset = uint64_t(m.data_offset) + uint64_t(m.stride) * m.storage_height;
+    const uint64_t chroma_offset = m.chroma();
     const uint64_t chroma_rows = (height + 1) / 2;
     const uint64_t row_bytes = uint64_t((width + 1) & ~1u) * bytes;
     check(width && height && width <= m.width && height <= m.height && height <= m.storage_height &&
@@ -100,8 +100,7 @@ void fill_neutral_surface(Memory &memory, unsigned width, unsigned height) {
     // range. P010 stores its ten significant bits in the high bits of a word.
     const uint16_t gray = 512u << 6;
     for (unsigned plane = 0; plane < 2; ++plane) {
-        size_t offset =
-            memory.data_offset + (plane ? size_t(memory.stride) * memory.storage_height : 0);
+        size_t offset = plane ? memory.chroma() : memory.data_offset;
         unsigned rows = plane ? (height + 1) / 2 : height;
         unsigned samples = plane ? ((width + 1) & ~1u) : width;
         for (unsigned row = 0; row < rows; ++row) {
@@ -129,10 +128,8 @@ void copy_surface(Memory &destination, Memory &source, unsigned width, unsigned 
     CpuAccess read(source, DMA_BUF_SYNC_READ);
     CpuAccess write(destination, DMA_BUF_SYNC_WRITE);
     for (unsigned plane = 0; plane < 2; ++plane) {
-        size_t src_offset =
-            source.data_offset + (plane ? size_t(source.stride) * source.storage_height : 0);
-        size_t dst_offset = destination.data_offset +
-                            (plane ? size_t(destination.stride) * destination.storage_height : 0);
+        size_t src_offset = plane ? source.chroma() : source.data_offset;
+        size_t dst_offset = plane ? destination.chroma() : destination.data_offset;
         unsigned rows = plane ? (height + 1) / 2 : height;
         unsigned row_bytes = (plane ? ((width + 1) & ~1u) : width) * bytes;
         for (unsigned row = 0; row < rows; ++row)

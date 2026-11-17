@@ -286,11 +286,9 @@ cdsp_vpp_frame import_vpp_frame(Memory &memory, const Surface &surface,
     check(memory.fd >= 0 && memory.fourcc == surface.fourcc && memory.size <= INT_MAX &&
               memory.width >= surface.width && memory.height >= surface.height &&
               memory.stride >= row_bytes && memory.storage_height >= surface.height &&
-              uint64_t(memory.data_offset) +
+              (is_rgb(surface.fourcc) ? uint64_t(memory.data_offset) : uint64_t(memory.chroma())) +
                       uint64_t(memory.stride) *
-                          (is_rgb(surface.fourcc)
-                               ? surface.height - 1
-                               : uint64_t(memory.storage_height) + surface.height / 2 - 1) +
+                          (is_rgb(surface.fourcc) ? surface.height - 1 : surface.height / 2 - 1) +
                       row_bytes <=
                   memory.size,
           "unsupported CDSP DMA-BUF layout", VA_STATUS_ERROR_INVALID_SURFACE);
@@ -308,7 +306,7 @@ cdsp_vpp_frame import_vpp_frame(Memory &memory, const Surface &surface,
             surface.height,
             memory.stride,
             memory.data_offset,
-            memory.data_offset + size_t(memory.stride) * memory.storage_height};
+            memory.chroma()};
 }
 #endif
 } // namespace
@@ -480,10 +478,10 @@ OverlayParams overlay_parameters(const VppPicture &layer, const Surface &base,
     p.height = target.height;
     p.src_stride = src.stride;
     p.src_y = src.data_offset;
-    p.src_uv = src.data_offset + src.stride * src.storage_height;
+    p.src_uv = src.chroma();
     p.dst_stride = dst.stride;
     p.dst_y = dst.data_offset;
-    p.dst_uv = dst.data_offset + dst.stride * dst.storage_height;
+    p.dst_uv = dst.chroma();
     p.rgb_stride = rgb.stride;
     p.rgb_offset = rgb.data_offset + r.y * rgb.stride + r.x * 4;
     p.rgb_width = r.width;

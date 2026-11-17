@@ -39,7 +39,7 @@ static VAStatus import_surface(VADisplay display, unsigned format, unsigned memo
     attrs[1].value.value.i = memory_type;
     return vaCreateSurfaces(display, format, 128, 128, surface, 1, attrs, 2);
 }
-static void test_format(VADisplay display, unsigned format) {
+static void test_format(VADisplay display, unsigned format, unsigned chroma_skew = 0) {
     bool p010 = format == VA_RT_FORMAT_YUV420_10;
     unsigned bytes = p010 ? 2 : 1;
     VASurfaceAttribExternalBuffers desc{};
@@ -49,7 +49,9 @@ static void test_format(VADisplay display, unsigned format) {
     desc.pitches[0] = desc.pitches[1] = 256 * bytes;
     // Exercise padded rows, padded storage height, and a nonzero base offset.
     desc.offsets[0] = 128;
-    desc.offsets[1] = desc.offsets[0] + desc.pitches[0] * 160;
+    // chroma_skew places chroma off the row grid, as an allocator that pads
+    // luma to a page boundary does (Mesa's freedreno for linear NV12).
+    desc.offsets[1] = desc.offsets[0] + desc.pitches[0] * 160 + chroma_skew;
     desc.data_size = (desc.offsets[1] + desc.pitches[1] * 64 + 4095) & ~4095u;
     int heap = open("/dev/dma_heap/system", O_RDONLY | O_CLOEXEC);
     require(heap >= 0, "open DMA heap");
@@ -115,6 +117,9 @@ static void test_format(VADisplay display, unsigned format) {
         bad = desc;
         ++bad.offsets[0];
         ++bad.offsets[1];
+        rejected(bad);
+        bad = desc;
+        ++bad.offsets[1]; // Chroma must stay aligned to a sample.
         rejected(bad);
     }
 
@@ -189,6 +194,8 @@ int main() {
     }
     test_format(display, VA_RT_FORMAT_YUV420);
     test_format(display, VA_RT_FORMAT_YUV420_10);
+    test_format(display, VA_RT_FORMAT_YUV420, 96);
+    test_format(display, VA_RT_FORMAT_YUV420_10, 96);
     expect(vaTerminate(display));
     close(fd);
     std::puts("PRIME1/PRIME2 NV12/P010 import tests passed");
