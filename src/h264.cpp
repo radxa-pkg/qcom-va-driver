@@ -186,6 +186,22 @@ void matrix(Bits &b, const uint8_t *values, const unsigned *scan, unsigned n) {
 std::vector<uint8_t> h264_bitstream(VAProfile profile, const Picture &pic, H264State &state) {
     check(pic.has_params && !pic.slices.empty() && pic.pending_slices.empty(),
           "H264 picture missing parameters or slices", VA_STATUS_ERROR_INVALID_BUFFER);
+    if (!state.started) {
+        // A context created mid-GOP can receive dependent pictures before a
+        // random-access point. Iris consumes them without producing CAPTURE
+        // buffers, eventually exhausting the surface pool. Reject them until an
+        // intra picture instead: an IDR, or an open-GOP/recovery-point I picture,
+        // which Iris starts from like an HEVC CRA.
+        bool intra = true;
+        for (const auto &slice : pic.slices) {
+            check(!slice.bytes.empty(), "invalid H264 slice NAL", VA_STATUS_ERROR_INVALID_BUFFER);
+            Reader r(slice.bytes);
+            r.ue();
+            intra &= r.ue() % 5 == 2;
+        }
+        check(intra, "H264 context requires an initial intra picture",
+              VA_STATUS_ERROR_DECODING_ERROR);
+    }
     const auto &p = pic.params;
     const auto &s = p.seq_fields.bits;
     const auto &f = p.pic_fields.bits;
@@ -336,6 +352,7 @@ std::vector<uint8_t> h264_bitstream(VAProfile profile, const Picture &pic, H264S
         out.insert(out.end(), {0, 0, 0, 1});
         out.insert(out.end(), slice.bytes.begin(), slice.bytes.end());
     }
+    state.started = true;
     return out;
 }
 } // namespace irisva
