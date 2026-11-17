@@ -126,6 +126,7 @@ struct Picture {
     std::vector<Slice> slices;
 };
 struct H264State {
+    bool started = false;
     std::vector<uint8_t> sps;
     std::map<unsigned, std::vector<uint8_t>> pps;
 };
