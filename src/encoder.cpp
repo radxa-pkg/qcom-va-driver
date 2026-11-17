@@ -813,7 +813,7 @@ std::shared_ptr<EncodeTask> Encoder::encode(const EncodeSettings &s, const Encod
             (memory->origin == MemoryOrigin::MsmCoherent || memory->origin == MemoryOrigin::Iris ||
              memory->origin == MemoryOrigin::DmaHeap) &&
             memory->stride == e.stride && memory->storage_height == e.storage_height &&
-            !memory->data_offset && memory->size >= e.input_size;
+            !memory->data_offset && !memory->chroma_skew && memory->size >= e.input_size;
         if (!e.import) {
             auto raw = e.raw[index];
             copy_surface(*raw, *memory, e.width, e.height);

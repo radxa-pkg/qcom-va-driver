@@ -491,7 +491,7 @@ static std::shared_ptr<Memory> import_prime(const VADRMPRIMESurfaceDescriptor &d
     unsigned row_bytes = ((width + 1) & ~1u) * sample_bytes;
     check(rgb || (pitches[0] >= row_bytes && pitches[0] == pitches[1] &&
                   pitches[0] % sample_bytes == 0 && offsets[0] % sample_bytes == 0 &&
-                  offsets[1] >= offsets[0] && (offsets[1] - offsets[0]) % pitches[0] == 0 &&
+                  offsets[1] >= offsets[0] && (offsets[1] - offsets[0]) % sample_bytes == 0 &&
                   (offsets[1] - offsets[0]) / pitches[0] >= height &&
                   uint64_t(offsets[1]) + uint64_t((height + 1) / 2 - 1) * pitches[1] + row_bytes <=
                       desc.objects[0].size),
@@ -510,6 +510,7 @@ static std::shared_ptr<Memory> import_prime(const VADRMPRIMESurfaceDescriptor &d
     m->height = height;
     m->stride = pitches[0];
     m->storage_height = rgb ? height : (offsets[1] - offsets[0]) / pitches[0];
+    m->chroma_skew = rgb ? 0 : (offsets[1] - offsets[0]) % pitches[0];
     m->data_offset = offsets[0];
     m->origin = MemoryOrigin::Imported;
     return m;
@@ -976,7 +977,7 @@ API(
     result.format = image_format(m->fourcc); result.width = s->width; result.height = s->height;
     result.data_size = m->size; result.num_planes = is_rgb(m->fourcc) ? 1 : 2;
     result.pitches[0] = result.pitches[1] = m->stride; result.offsets[0] = m->data_offset;
-    result.offsets[1] = m->data_offset + m->stride * m->storage_height; if (is_rgb(m->fourcc)) {
+    result.offsets[1] = m->chroma(); if (is_rgb(m->fourcc)) {
         result.pitches[1] = 0;
         result.offsets[1] = 0;
     } auto b = std::make_shared<Buffer>();
@@ -1018,8 +1019,7 @@ API(
                     source.data + image.offsets[0] + (sy + row) * image.pitches[0] + sx * bytes,
                     sw *bytes);
     for (unsigned row = 0; !is_rgb(s->fourcc) && row < sh / 2; ++row) {
-        auto uv = destination.data + m->data_offset +
-                  (m->storage_height + dy / 2 + row) * m->stride + dx * bytes;
+        auto uv = destination.data + m->chroma() + (dy / 2 + row) * m->stride + dx * bytes;
         if (image.format.fourcc == VA_FOURCC_I420) {
             for (unsigned col = 0; col < sw / 2; ++col) {
                 uv[2 * col] =
@@ -1089,7 +1089,7 @@ API(
     for (unsigned row = 0; row < h; ++row)
         std::memcpy(destination.data + image.offsets[0] + row * image.pitches[0],
                     base + (y + row) * m->stride + x * bytes_per_sample, w *bytes_per_sample);
-    uint8_t *uv = base + m->stride * m->storage_height + (y / 2) * m->stride + x * bytes_per_sample;
+    uint8_t *uv = m->map() + m->chroma() + (y / 2) * m->stride + x * bytes_per_sample;
     for (unsigned row = 0; !is_rgb(m->fourcc) && row < (h + 1) / 2; ++row) {
         if (image.format.fourcc != VA_FOURCC_I420)
             std::memcpy(destination.data + image.offsets[1] + row * image.pitches[1],
@@ -1145,7 +1145,7 @@ API(
         for (unsigned i = 0; i < 2; ++i) {
             desc.layers[i].num_planes = 1;
             desc.layers[i].pitch[0] = m->stride;
-            desc.layers[i].offset[0] = m->data_offset + (i ? m->stride * m->storage_height : 0);
+            desc.layers[i].offset[0] = i ? m->chroma() : m->data_offset;
         }
     } else {
         desc.num_layers = 1;
@@ -1153,7 +1153,7 @@ API(
         desc.layers[0].num_planes = 2;
         desc.layers[0].pitch[0] = desc.layers[0].pitch[1] = m->stride;
         desc.layers[0].offset[0] = m->data_offset;
-        desc.layers[0].offset[1] = m->data_offset + m->stride * m->storage_height;
+        desc.layers[0].offset[1] = m->chroma();
     } return VA_STATUS_SUCCESS;)
 
 API(
