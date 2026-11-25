@@ -181,7 +181,7 @@ ffmpeg -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 \
 | `LIBVA_DRIVER_NAME=qcom` | Explicitly select this backend. |
 | `LIBVA_DRIVERS_PATH=/path/to/build` | Load an uninstalled build. |
 | `IRIS_VAAPI_DEVICE` / `IRIS_VAAPI_ENCODER_DEVICE` | Override video-device discovery. |
-| `IRIS_VAAPI_COPY=gpu` or `cpu` | Default: GPU when built in, otherwise CPU. Explicit GPU requires GPU-copy support. |
+| `IRIS_VAAPI_COPY=gpu` or `cpu` | Default: GPU when built in, otherwise CPU. Explicit GPU requires GPU-copy support. Imports whose pitch or plane offsets are not 64-byte aligned are always copied on the CPU. |
 | `IRIS_VAAPI_DEBUG=1` | Enable diagnostics. |
 
 Use clang-format 22 with the checked-in `.clang-format` (Meson targets: `format`,

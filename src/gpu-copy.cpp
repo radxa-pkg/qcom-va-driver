@@ -16,6 +16,13 @@
 
 namespace irisva {
 namespace {
+// Adreno misplaces linear copies whose plane base is not 64-byte aligned
+// without reporting an error, and Mesa rejects imports whose pitch is not a
+// multiple of 64. Driver and V4L2 allocations always comply; an imported
+// DMA-BUF may not, and is copied on the CPU instead.
+bool gpu_copy_aligned(const Memory &m) {
+    return !(m.stride % 64) && !(m.data_offset % 64) && !(m.chroma() % 64);
+}
 class GpuCopy {
     int fd_ = -1;
     gbm_device *gbm_ = nullptr;
@@ -249,7 +256,9 @@ void SurfaceCopier::copy(const std::shared_ptr<Memory> &dst, const std::shared_p
     try {
         if (!impl_)
             impl_ = std::make_unique<Impl>(render_fd_);
-        if (impl_->cpu) {
+        if (impl_->cpu || !gpu_copy_aligned(*src) || !gpu_copy_aligned(*dst)) {
+            if (!impl_->cpu)
+                trace("surface copy mode=cpu: layout not 64-byte aligned for GPU copy");
             copy_surface(*dst, *src, w, h);
             return;
         }
