@@ -49,10 +49,8 @@ void validate_layout(const Memory &memory, const Surface &surface) {
     check(memory.fd >= 0 && memory.fourcc == surface.fourcc && memory.width >= surface.width &&
               memory.height >= surface.height && memory.stride >= row_bytes &&
               memory.storage_height >= surface.height && !(memory.stride & 1) &&
-              !(memory.data_offset & 1) && memory.size <= UINT32_MAX &&
-              uint64_t(memory.data_offset) +
-                      uint64_t(memory.stride) *
-                          (uint64_t(memory.storage_height) + surface.height / 2 - 1) +
+              !(memory.data_offset & 1) && !(memory.chroma() & 1) && memory.size <= UINT32_MAX &&
+              uint64_t(memory.chroma()) + uint64_t(memory.stride) * (surface.height / 2 - 1) +
                       row_bytes <=
                   memory.size,
           "unsupported Vulkan DMA-BUF layout", VA_STATUS_ERROR_INVALID_SURFACE);
@@ -602,11 +600,11 @@ void VulkanVpp::process(const VppPicture &picture, Surface &target) {
                       crop.height,
                       src.stride,
                       src.data_offset + unsigned(crop.y) * src.stride + unsigned(crop.x) * 2,
-                      src.data_offset + src.storage_height * src.stride +
-                          unsigned(crop.y / 2) * src.stride + unsigned(crop.x) * 2,
+                      unsigned(src.chroma()) + unsigned(crop.y / 2) * src.stride +
+                          unsigned(crop.x) * 2,
                       dst.stride,
                       dst.data_offset,
-                      dst.data_offset + dst.storage_height * dst.stride,
+                      unsigned(dst.chroma()),
                       float(source_pq),
                       destination,
                       1.5f * destination - 0.5f};
@@ -643,11 +641,10 @@ void VulkanVpp::transform(const VppPicture &picture, Surface &target) {
     p.enlarging = crop.width < p.scaled_width || crop.height < p.scaled_height;
     p.src_stride = src.stride;
     p.src_y = src.data_offset + crop.y * src.stride + crop.x * (1 + p.src_wide);
-    p.src_uv = src.data_offset + src.stride * (src.storage_height + crop.y / 2) +
-               crop.x * (1 + p.src_wide);
+    p.src_uv = int32_t(src.chroma()) + src.stride * (crop.y / 2) + crop.x * (1 + p.src_wide);
     p.dst_stride = dst.stride;
     p.dst_y = dst.data_offset;
-    p.dst_uv = dst.data_offset + dst.stride * dst.storage_height;
+    p.dst_uv = int32_t(dst.chroma());
     bool scaling = p.src_width != p.scaled_width || p.src_height != p.scaled_height;
     if (scaling) {
         impl_->prepare_filters(p.src_width, p.src_height, p.scaled_width, p.scaled_height);
