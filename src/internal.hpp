@@ -69,7 +69,9 @@ struct Memory {
     ~Memory();
     uint8_t *map();
     // Byte offset of the chroma plane from the start of the buffer.
-    size_t chroma() const { return size_t(data_offset) + size_t(stride) * storage_height + chroma_skew; }
+    size_t chroma() const {
+        return size_t(data_offset) + size_t(stride) * storage_height + chroma_skew;
+    }
 };
 class Decoder;
 class SurfaceCopier {
