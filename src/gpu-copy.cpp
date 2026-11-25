@@ -258,7 +258,7 @@ void SurfaceCopier::copy(const std::shared_ptr<Memory> &dst, const std::shared_p
             impl_ = std::make_unique<Impl>(render_fd_);
         if (impl_->cpu || !gpu_copy_aligned(*src) || !gpu_copy_aligned(*dst)) {
             if (!impl_->cpu)
-                trace("surface copy mode=cpu: layout not 64-byte aligned for GPU copy");
+                trace("surface copy mode=cpu %ux%u: layout not 64-byte aligned for GPU copy", w, h);
             copy_surface(*dst, *src, w, h);
             return;
         }
